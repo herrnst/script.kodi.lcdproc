@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<settings>
+  <category label="32100">
+    <setting id="overlaytimeout" type="slider" label="32103" option="int" default="2" range="1,10" />
+    <setting id="refreshrate" type="slider" label="32104" option="int" default="1" range="1,20" />
+  </category>
+</settings>
