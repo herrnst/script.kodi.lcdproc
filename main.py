@@ -72,6 +72,11 @@ def pymain():
   log(LOGNOTICE, "Unload request, flagging for stop")
   LCDprocGlobals.bUnloadRequested = True
 
+  # signal cancel to all threads
+  for thisthread in threadlist:
+    thisthread.cancel()
+
+  # wait for threads to join
   for thisthread in threadlist:
     thisthread.join()
     log(LOGDEBUG, "mainthread: stopped %s" % thisthread)

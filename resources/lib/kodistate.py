@@ -35,6 +35,7 @@ sys.path.insert(0, xbmc.translatePath(os.path.join(xbmcaddon.Addon().getAddonInf
 
 # imports from resources/lib
 from common import *
+from lcdthread import *
 from lcdprocglobals import *
 from jrpchelper import *
 from settings import *
@@ -71,7 +72,7 @@ DISPLAYMODE = enum(
   'SCREENSAVER'
 )
 
-class CKodiState(threading.Thread, xbmc.Monitor):
+class CKodiState(CLCDThread, xbmc.Monitor):
 
   ######
   # constructor, init vars and sync state
@@ -122,7 +123,7 @@ class CKodiState(threading.Thread, xbmc.Monitor):
     self.m_jrpclock.release()
     
     # init base classes
-    threading.Thread.__init__(self)
+    CLCDThread.__init__(self)
     xbmc.Monitor.__init__(self)
 
   ######
@@ -134,12 +135,8 @@ class CKodiState(threading.Thread, xbmc.Monitor):
     threadid = str(threading.current_thread())
     log(LOGDEBUG, "Starting worker thread '%s'" % threadid)
 
-    # flag for alternative cancel signal
-    cancelthread = False
-
     # do work unless being told otherwise
-    while not (cancelthread or LCDprocGlobals.bUnloadRequested):
-
+    while not self.m_cancel:
       # take lock so notifications won't interfere
       self.m_jrpclock.acquire()
 
@@ -159,11 +156,7 @@ class CKodiState(threading.Thread, xbmc.Monitor):
       log(LOGDEBUG, "state: %i / mode: %i / iRefreshRate: %i / vcodec: %s / acodec: %s / progress: %f" % (self.m_ePlayState, self.getRealDisplayMode(), LCDprocGlobals.iRefreshRate, self.m_sVideoCodec, self.m_sAudioCodec, self.m_fPlayerProgressPercent))
 
       # sleep for refreshrate time or until application wants to get rid of us
-      cancelthread = xbmc.Monitor().waitForAbort(LCDprocGlobals.fRefreshDelay)
-
-    # if alternate abort was signalled without app abort, leave a note
-    if not cancelthread and LCDprocGlobals.bUnloadRequested:
-      log(LOGNOTICE, "%s received unload request from main thread without abort notification" % threadid)
+      time.sleep(LCDprocGlobals.fRefreshDelay)
 
     # leave stop note
     log(LOGDEBUG, "%s stopping" % threadid)
