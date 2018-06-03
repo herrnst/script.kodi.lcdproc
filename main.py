@@ -35,7 +35,6 @@ sys.path.insert(0, xbmc.translatePath(os.path.join(xbmcaddon.Addon().getAddonInf
 
 # imports from resources/lib
 from common import *
-from jrpchelper import *
 from kodistate import *
 from lcdprocglobals import *
 from settings import *
@@ -49,14 +48,8 @@ def GlobalsInit():
 
   LCDprocGlobals.cSettings.getSettings()
 
-def registerNotification():
-  jping = KodiJRPC_Get("JSONRPC.Ping", False)
-  jperms = KodiJRPC_Get("JSONRPC.Permission", False)
-
 def pymain():
   GlobalsInit()
-
-  registerNotification()
 
   threadlist = []
 
@@ -83,4 +76,5 @@ def pymain():
 
 #########################################
 # python entry point
-pymain()
+if __name__ == "__main__":
+  pymain()

@@ -45,9 +45,8 @@ class CLCDThread(threading.Thread):
 		# instance vars
 		self.m_threadlock = threading.Lock()
 		self.m_cancel = False
-		# take note of thread id
-		self.m_threadid = str(threading.current_thread())
-		log(LOGDEBUG, "New worker thread %s" % self.m_threadid)
+		self.m_type = self.__class__.__name__
+		self.m_threadid = None
 
 	def cancel(self):
 		log(LOGDEBUG, "Cancelling worker thread %s" % self.m_threadid)

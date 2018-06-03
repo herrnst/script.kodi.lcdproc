@@ -77,6 +77,10 @@ class CKodiState(CLCDThread, xbmc.Monitor):
   ######
   # constructor, init vars and sync state
   def __init__(self):
+    # init base classes
+    CLCDThread.__init__(self)
+    xbmc.Monitor.__init__(self)
+
     # prepare infobool strings to save some cpu ticks later
     self.const_sKaiToastActive = "Window.IsActive(" + str(WINDOW_IDS.WINDOW_DIALOG_KAI_TOAST) + ")"
     self.const_sVolumeBarActive = "Window.IsActive(" + str(WINDOW_IDS.WINDOW_DIALOG_VOLUME_BAR) + ")"
@@ -115,16 +119,48 @@ class CKodiState(CLCDThread, xbmc.Monitor):
 
     # clear/init other vars and resync all states with Kodi
     self.m_jrpclock.acquire()
-    
+
     self.clearPlayerVars()
     self.syncStateOnInit()
     self.forceResync()
-    
+
     self.m_jrpclock.release()
-    
-    # init base classes
-    CLCDThread.__init__(self)
-    xbmc.Monitor.__init__(self)
+
+  def jsonrpc_get(self, method, params):
+    jsondebug = False
+
+    jsondata = {
+      "jsonrpc": "2.0",
+      "method": method,
+      "id": method}
+
+    if params:
+      jsondata["params"] = params
+
+    try:
+      if jsondebug: log(LOGNOTICE, "==== JSONRPC debug begin ====")
+
+      rpccmd = json.dumps(jsondata)
+      if jsondebug: log(LOGNOTICE, "JSONRPC out: " + rpccmd)
+
+      if self.m_cancel:
+        log(LOGNOTICE, "in abort state")
+        return False
+
+      rpcreply = xbmc.executeJSONRPC(rpccmd)
+
+      if jsondebug: log(LOGNOTICE, "JSONRPC in: " + rpcreply)
+
+      if jsondebug: log(LOGNOTICE, "==== JSONRPC debug end ====")
+
+      rpcdata = json.loads(rpcreply)
+
+      if rpcdata["id"] == method and rpcdata.has_key("result"):
+        return rpcdata["result"]
+    except:
+      log(LOGERROR, "Caught exception in JSON-RPC helper")
+
+    return False
 
   ######
   # run() - main thread loop doing background state inquiry for
@@ -132,11 +168,18 @@ class CKodiState(CLCDThread, xbmc.Monitor):
   def run(self):
 
     # take note of threadid and debug to application log
-    threadid = str(threading.current_thread())
-    log(LOGDEBUG, "Starting worker thread '%s'" % threadid)
+    self.m_threadid = str(threading.current_thread())
+    log(LOGDEBUG, "Starting worker thread '%s'" % self.m_threadid)
 
     # do work unless being told otherwise
     while not self.m_cancel:
+      # sleep for refreshrate time or until application wants to get rid of us
+      abrtreq = self.waitForAbort(LCDprocGlobals.fRefreshDelay)
+      if abrtreq:
+        log(LOGDEBUG, "abortRequested")
+        self.cancel()
+        continue
+
       # take lock so notifications won't interfere
       self.m_jrpclock.acquire()
 
@@ -155,11 +198,8 @@ class CKodiState(CLCDThread, xbmc.Monitor):
       ##FIXME## debug dummy output (get rid of when done)
       log(LOGDEBUG, "state: %i / mode: %i / iRefreshRate: %i / vcodec: %s / acodec: %s / progress: %f" % (self.m_ePlayState, self.getRealDisplayMode(), LCDprocGlobals.iRefreshRate, self.m_sVideoCodec, self.m_sAudioCodec, self.m_fPlayerProgressPercent))
 
-      # sleep for refreshrate time or until application wants to get rid of us
-      time.sleep(LCDprocGlobals.fRefreshDelay)
-
     # leave stop note
-    log(LOGDEBUG, "%s stopping" % threadid)
+    log(LOGDEBUG, "%s stopping" % self.m_threadid)
 
   ######
   # clearPlayerVars() cleans up state vars on stop, init etc.
@@ -195,7 +235,7 @@ class CKodiState(CLCDThread, xbmc.Monitor):
   def forceResync(self):
 
     # check if any player is active
-    players = KodiJRPC_Get("Player.GetActivePlayers", False)
+    players = self.jsonrpc_get("Player.GetActivePlayers", False)
 
     # if any player is active, retrieve more data
     if players and len(players) > 0:
@@ -208,9 +248,9 @@ class CKodiState(CLCDThread, xbmc.Monitor):
       playerid = players[0]["playerid"]
 
       # retrieve some data using JSONRPC
-      playitem = KodiJRPC_Get("Player.GetItem", {"playerid": playerid})
-      playprops = KodiJRPC_Get("Player.GetProperties", {"playerid": playerid, "properties": ["type", "speed", "repeat", "shuffled"]})
-      pvrprops = KodiJRPC_Get("PVR.GetProperties", {"properties": ["recording"]})
+      playitem = self.jsonrpc_get("Player.GetItem", {"playerid": playerid})
+      playprops = self.jsonrpc_get("Player.GetProperties", {"playerid": playerid, "properties": ["type", "speed", "repeat", "shuffled"]})
+      pvrprops = self.jsonrpc_get("PVR.GetProperties", {"properties": ["recording"]})
 
       # take note of type of played item
       playtype = playitem["item"]["type"]
@@ -235,12 +275,12 @@ class CKodiState(CLCDThread, xbmc.Monitor):
 
     # retrieve volume from app properties (note we get an int here,
     # further notification will yield floats)
-    props = KodiJRPC_Get("Application.GetProperties", {"properties": ["volume", "muted"]})
+    props = self.jsonrpc_get("Application.GetProperties", {"properties": ["volume", "muted"]})
     self.m_fAppVolumePercent = float(props["volume"])
     self.m_bPlayerIsMuted = props["muted"]
 
     # additional list of interesting InfoBools
-    bools = KodiJRPC_Get("XBMC.GetInfoBooleans", {
+    bools = self.jsonrpc_get("XBMC.GetInfoBooleans", {
       "booleans": [
         "System.ScreenSaverActive",
         "System.DPMSActive"
@@ -257,7 +297,7 @@ class CKodiState(CLCDThread, xbmc.Monitor):
   def syncStateOnNotify(self):
 
     # list of InfoLabels to load
-    labels = KodiJRPC_Get("XBMC.GetInfoLabels", {
+    labels = self.jsonrpc_get("XBMC.GetInfoLabels", {
       "labels": [
         "MusicPlayer.Codec",
         "Player.Filenameandpath",
@@ -267,7 +307,7 @@ class CKodiState(CLCDThread, xbmc.Monitor):
         ]})
 
     # list of InfoBools (aka. CondVisibility)
-    bools = KodiJRPC_Get("XBMC.GetInfoBooleans", {
+    bools = self.jsonrpc_get("XBMC.GetInfoBooleans", {
       "booleans": [
         "Player.IsInternetStream",
         "Playlist.IsRandom",
@@ -316,7 +356,7 @@ class CKodiState(CLCDThread, xbmc.Monitor):
     tstamp = time.time()
 
     # list of InfoLabels to load
-    labels = KodiJRPC_Get("XBMC.GetInfoLabels", {
+    labels = self.jsonrpc_get("XBMC.GetInfoLabels", {
       "labels": [
         "MusicPlayer.Channels",
         "Player.Duration",
@@ -329,7 +369,7 @@ class CKodiState(CLCDThread, xbmc.Monitor):
         ]})
 
     # list of InfoBools (aka. CondVisibility)
-    bools = KodiJRPC_Get("XBMC.GetInfoBooleans", {
+    bools = self.jsonrpc_get("XBMC.GetInfoBooleans", {
       "booleans": [
         "PVR.IsRecording",
         "Player.Passthrough",
@@ -407,6 +447,7 @@ class CKodiState(CLCDThread, xbmc.Monitor):
       log(LOGNOTICE, "CXBMCMonitor::onNotification() - method: %s" % method)
       log(LOGNOTICE, "CXBMCMonitor::onNotification() - data: %s" % data)
 
+    log(LOGDEBUG, "onNotification(): acquire m_jrpclock")
     self.m_jrpclock.acquire()
 
     jsondata = json.loads(data)
@@ -432,6 +473,7 @@ class CKodiState(CLCDThread, xbmc.Monitor):
     elif method == "GUI.OnDPMSDeactivated":
       self.notifyGUIOnDPMS(False)
 
+    log(LOGDEBUG, "onNotification(): release m_jrpclock")
     self.m_jrpclock.release()
 
   def onSettingsChanged(self):

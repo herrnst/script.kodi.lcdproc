@@ -50,6 +50,10 @@ def KodiJRPC_Get(method, params):
     rpccmd = json.dumps(jsondata)
     if jsondebug: log(LOGNOTICE, "JSONRPC out: " + rpccmd)
 
+    if xbmc.Monitor().abortRequested():
+      log(LOGNOTICE, "in abort state")
+      return False
+
     rpcreply = xbmc.executeJSONRPC(rpccmd)    
     if jsondebug: log(LOGNOTICE, "JSONRPC in: " + rpcreply)
 
