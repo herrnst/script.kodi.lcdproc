@@ -127,7 +127,7 @@ class CKodiState(CLCDThread, xbmc.Monitor):
     self.m_jrpclock.release()
 
   def jsonrpc_get(self, method, params):
-    jsondebug = False
+    jsondebug = True
 
     jsondata = {
       "jsonrpc": "2.0",
@@ -173,13 +173,6 @@ class CKodiState(CLCDThread, xbmc.Monitor):
 
     # do work unless being told otherwise
     while not self.m_cancel:
-      # sleep for refreshrate time or until application wants to get rid of us
-      abrtreq = self.waitForAbort(LCDprocGlobals.fRefreshDelay)
-      if abrtreq:
-        log(LOGDEBUG, "abortRequested")
-        self.cancel()
-        continue
-
       # take lock so notifications won't interfere
       self.m_jrpclock.acquire()
 
@@ -197,6 +190,12 @@ class CKodiState(CLCDThread, xbmc.Monitor):
 
       ##FIXME## debug dummy output (get rid of when done)
       log(LOGDEBUG, "state: %i / mode: %i / iRefreshRate: %i / vcodec: %s / acodec: %s / progress: %f" % (self.m_ePlayState, self.getRealDisplayMode(), LCDprocGlobals.iRefreshRate, self.m_sVideoCodec, self.m_sAudioCodec, self.m_fPlayerProgressPercent))
+
+      # sleep for refreshrate time or until application wants to get rid of us
+      abrtreq = self.waitForAbort(LCDprocGlobals.fRefreshDelay)
+      if abrtreq:
+        log(LOGDEBUG, "abortRequested")
+        self.cancel()
 
     # leave stop note
     log(LOGDEBUG, "%s stopping" % self.m_threadid)
