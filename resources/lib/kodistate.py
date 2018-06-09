@@ -117,6 +117,9 @@ class CKodiState(CLCDThread, xbmc.Monitor):
     self.m_fPlayerProgressPercent = 0.0
     self.m_iLastNavTime = 0
 
+    # behaviour: use executeJSONRPC instead of GetInfoLabels() and friends
+    self.m_useExecJRPC = False
+
     # clear/init other vars and resync all states with Kodi
     self.m_jrpclock.acquire()
 
@@ -127,7 +130,7 @@ class CKodiState(CLCDThread, xbmc.Monitor):
     self.m_jrpclock.release()
 
   def jsonrpc_get(self, method, params):
-    jsondebug = False
+    jsondebug = True
 
     jsondata = {
       "jsonrpc": "2.0",
@@ -161,6 +164,28 @@ class CKodiState(CLCDThread, xbmc.Monitor):
       log(LOGERROR, "Caught exception in JSON-RPC helper")
 
     return False
+
+  def getlabels(self, labels):
+    if self.m_useExecJRPC:
+      return self.jsonrpc_get("XBMC.GetInfoLabels",
+        {"labels": labels})
+
+    ret = {}
+    for label in labels:
+      ret[label] = xbmc.getInfoLabel(label)
+
+    return ret
+
+  def getbools(self, bools):
+    if self.m_useExecJRPC:
+      return self.jsonrpc_get("XBMC.GetInfoBooleans",
+        {"booleans": bools})
+
+    ret = {}
+    for bool in bools:
+      ret[bool] = xbmc.getCondVisibility(bool)
+
+    return ret
 
   ######
   # run() - main thread loop doing background state inquiry for
@@ -279,16 +304,14 @@ class CKodiState(CLCDThread, xbmc.Monitor):
     self.m_bPlayerIsMuted = props["muted"]
 
     # additional list of interesting InfoBools
-    bools = self.jsonrpc_get("XBMC.GetInfoBooleans", {
-      "booleans": [
-        "System.ScreenSaverActive",
-        "System.DPMSActive"
-        ]})
+    bools = self.getbools([
+      "System.ScreenSaverActive",
+      "System.DPMSActive"
+    ])
 
     # those two should be false on regular startup, but who knows...
     self.m_bScreenSaverActive = bools["System.ScreenSaverActive"]
     self.m_bDPMSActive = bools["System.DPMSActive"]
-
 
   ######
   # syncStateOnNotify() should be called on any player notifications
@@ -296,23 +319,21 @@ class CKodiState(CLCDThread, xbmc.Monitor):
   def syncStateOnNotify(self):
 
     # list of InfoLabels to load
-    labels = self.jsonrpc_get("XBMC.GetInfoLabels", {
-      "labels": [
-        "MusicPlayer.Codec",
-        "Player.Filenameandpath",
-        "VideoPlayer.AudioCodec",
-        "VideoPlayer.VideoCodec",
-        "VideoPlayer.VideoResolution"
-        ]})
+    labels = self.getlabels([
+      "MusicPlayer.Codec",
+      "Player.Filenameandpath",
+      "VideoPlayer.AudioCodec",
+      "VideoPlayer.VideoCodec",
+      "VideoPlayer.VideoResolution"
+    ])
 
     # list of InfoBools (aka. CondVisibility)
-    bools = self.jsonrpc_get("XBMC.GetInfoBooleans", {
-      "booleans": [
-        "Player.IsInternetStream",
-        "Playlist.IsRandom",
-        "Playlist.IsRepeat",
-        "Playlist.IsRepeatOne"
-        ]})
+    bools = self.getbools([
+      "Player.IsInternetStream",
+      "Playlist.IsRandom",
+      "Playlist.IsRepeat",
+      "Playlist.IsRepeatOne"
+    ])
 
     # evaluate label data
     if labels:
@@ -355,26 +376,24 @@ class CKodiState(CLCDThread, xbmc.Monitor):
     tstamp = time.time()
 
     # list of InfoLabels to load
-    labels = self.jsonrpc_get("XBMC.GetInfoLabels", {
-      "labels": [
-        "MusicPlayer.Channels",
-        "Player.Duration",
-        "Player.Time",
-        "System.CurrentWindow",
-        "System.CurrentControl",
-        "System.ScreenHeight",
-        "System.Time(hh:mm:ss)",
-        "VideoPlayer.AudioChannels",
-        ]})
+    labels = self.getlabels([
+      "MusicPlayer.Channels",
+      "Player.Duration",
+      "Player.Time",
+      "System.CurrentWindow",
+      "System.CurrentControl",
+      "System.ScreenHeight",
+      "System.Time(hh:mm:ss)",
+      "VideoPlayer.AudioChannels",
+    ])
 
     # list of InfoBools (aka. CondVisibility)
-    bools = self.jsonrpc_get("XBMC.GetInfoBooleans", {
-      "booleans": [
-        "PVR.IsRecording",
-        "Player.Passthrough",
-        self.const_sKaiToastActive,
-        self.const_sVolumeBarActive
-        ]})
+    bools = self.getbools([
+      "PVR.IsRecording",
+      "Player.Passthrough",
+      self.const_sKaiToastActive,
+      self.const_sVolumeBarActive
+    ])
 
     # take note of active window id (accessible via xbmcgui)
     self.m_iActiveWindowID = int(xbmcgui.getCurrentWindowId())
