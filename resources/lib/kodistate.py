@@ -127,7 +127,7 @@ class CKodiState(CLCDThread, xbmc.Monitor):
     self.m_jrpclock.release()
 
   def jsonrpc_get(self, method, params):
-    jsondebug = True
+    jsondebug = False
 
     jsondata = {
       "jsonrpc": "2.0",
@@ -143,7 +143,7 @@ class CKodiState(CLCDThread, xbmc.Monitor):
       rpccmd = json.dumps(jsondata)
       if jsondebug: log(LOGNOTICE, "JSONRPC out: " + rpccmd)
 
-      if self.m_cancel:
+      if LCDprocGlobals.cKodiMonitor.abortRequested():
         log(LOGNOTICE, "in abort state")
         return False
 
@@ -193,7 +193,7 @@ class CKodiState(CLCDThread, xbmc.Monitor):
 
       # sleep for refreshrate time or until application wants to get rid of us
       abrtreq = self.waitForAbort(LCDprocGlobals.fRefreshDelay)
-      if abrtreq:
+      if LCDprocGlobals.cKodiMonitor.abortRequested():
         log(LOGDEBUG, "abortRequested")
         self.cancel()
 
@@ -440,7 +440,7 @@ class CKodiState(CLCDThread, xbmc.Monitor):
       self.m_bNavigationActive = False
 
   def onNotification(self, sender, method, data):
-    if False:
+    if True:
       log(LOGNOTICE, "CXBMCMonitor::onNotification() - dumping")
       log(LOGNOTICE, "CXBMCMonitor::onNotification() - sender: %s" % sender)
       log(LOGNOTICE, "CXBMCMonitor::onNotification() - method: %s" % method)

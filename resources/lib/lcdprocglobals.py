@@ -25,6 +25,7 @@ class LCDprocGlobals:
 
   cSettings = None
   cKodiState = None
+  cKodiMonitor = None
 
   bUnloadRequested = False
 

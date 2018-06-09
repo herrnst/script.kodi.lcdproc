@@ -40,6 +40,9 @@ from lcdprocglobals import *
 from settings import *
 
 def GlobalsInit():
+  if not LCDprocGlobals.cKodiMonitor:
+    LCDprocGlobals.cKodiMonitor = xbmc.Monitor()
+
   if not LCDprocGlobals.cSettings:
     LCDprocGlobals.cSettings = LCDprocSettings()
 
@@ -60,7 +63,7 @@ def pymain():
   # run forever
   log(LOGNOTICE, "going to waitforabort")
 
-  aborted = xbmc.Monitor().waitForAbort(-1)
+  aborted = LCDprocGlobals.cKodiMonitor.waitForAbort(-1)
 
   log(LOGNOTICE, "Unload request, flagging for stop")
   LCDprocGlobals.bUnloadRequested = True
